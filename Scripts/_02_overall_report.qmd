@@ -1,0 +1,150 @@
+---
+title: "Untitled"
+format: pdf
+---
+
+
+```{r}
+#| label: setup
+
+
+# Load Packages -----------------------------------------------------------
+
+library(tidyverse)
+library(janitor)
+library(pacman)
+library(here)
+library(gtsummary)
+library(kableExtra)
+
+```
+
+```{r}
+#| label: load_data
+
+
+df <- read_rds("./Data/Clean Data/Demo_Satisfaction_Survey.rds") %>% 
+  mutate(academic_classification = factor(academic_classification,
+                                          levels = c("FR", "SO", "JR", "SR")))
+```
+
+```{r, results='asis'}
+#| label: print_tables
+
+# Satisfaction matrix table
+
+df %>% 
+  select(sat_mjr_instruction:sat_belonging) %>%
+  sjlabelled::label_to_colnames() %>%
+  # gtsummary will use label attr when
+  # available, but mutate/across drops labels
+  mutate(
+    across(
+      .cols = everything(),
+      .fns = ~case_when(is.na(.x) ~ NA,
+                        as.numeric(.x) %in% c(4,5) ~ 1,
+                        as.numeric(.x) %in% c(1:3)~ 0,
+                        TRUE ~ NA)
+      )
+  ) %>%    
+  tbl_summary(
+    include = everything(),
+    missing = "no",
+    type = everything() ~ "dichotomous",
+    statistic = all_dichotomous() ~ "{p}%\nN={N_nonmiss}"
+  ) %>% 
+  # show_header_names() %>% 
+  modify_header(
+    label = "**Overall, how satisfied are you with the following aspects of your college experience?**",
+    stat_0 = "**Agree or Strongly Agree**"
+  ) %>% 
+  modify_table_body(
+    ~ .x %>% 
+      mutate(temp_pct = str_extract(stat_0, "^.*?(?=%)")) %>% 
+      arrange(desc(temp_pct)) %>% 
+      select(-temp_pct)
+  )
+  
+# Satisfaction matrix table by academic_classification
+
+
+df %>% 
+  select(sat_mjr_instruction:sat_belonging,
+         academic_classification) %>%
+  sjlabelled::label_to_colnames() %>%
+  # gtsummary will use label attr when
+  # available, but mutate/across drops labels
+  mutate(
+    across(
+      .cols = -c(academic_classification),
+      .fns = ~case_when(is.na(.x) ~ NA,
+                        as.numeric(.x) %in% c(4,5) ~ 1,
+                        as.numeric(.x) %in% c(1:3)~ 0,
+                        TRUE ~ NA)
+    )
+  ) %>%
+  tbl_summary(
+    include = everything(),
+    missing = "no",
+    by = academic_classification,
+    type = everything() ~ "dichotomous",
+    statistic = all_dichotomous() ~ "{p}%\nN={N_nonmiss}"
+  ) %>% 
+  # show_header_names() %>% 
+  modify_header(
+    label = "**Overall, how satisfied are you with the following aspects of your college experience?**",
+    stat_0 = "**Agree or Strongly Agree**"
+  ) %>% 
+  add_overall() %>% #use this field to sort to match prior table
+  modify_table_body(
+    ~ .x %>% 
+      mutate(temp_pct = str_extract(stat_0, "^.*?(?=%)")) %>% 
+      arrange(desc(temp_pct)) %>% 
+      select(-c(temp_pct, stat_0))
+  )
+
+
+# Satisfaction and Confidence 10 pt scale questions
+df %>% 
+  select(sat_overall, sat_value, conf_life_skills) %>% 
+  sjlabelled::label_to_colnames() %>%
+  mutate(
+    across(
+      .cols = everything(),
+      .fns = ~as.numeric(.x)
+    )
+  ) %>% 
+  tbl_summary(
+    include = everything(),
+    missing = "no",
+    type = everything() ~ "continuous2",
+    statistic = all_continuous2() ~ "{mean} ({sd})\nN={N_nonmiss}"
+  ) %>%
+  modify_header(
+    label = "**Survey Item**",
+    stat_0 = "**Results**"
+  )
+
+# Satisfaction and Confidence 10 pt scale questions by academic_classification
+df %>% 
+  select(sat_overall, sat_value, conf_life_skills, academic_classification) %>% 
+  sjlabelled::label_to_colnames() %>%
+  mutate(
+    across(
+      .cols = -c(academic_classification),
+      .fns = ~as.numeric(.x)
+    )
+  ) %>%
+  tbl_summary(
+    include = everything(),
+    missing = "no",
+    by = academic_classification,
+    type = everything() ~ "continuous2",
+    statistic = all_continuous2() ~ "{mean} ({sd})\nN={N_nonmiss}"
+  ) %>%
+  modify_header(
+    label = "**Survey Item**"
+  )
+
+```
+  
