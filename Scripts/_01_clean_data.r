@@ -12,18 +12,13 @@
 ##
 ## ---------------------------
 
-# Declare Location --------------------------------------------------------
-
-here::i_am("./Scripts/_01_clean_data.r") # specify current file location relative to project dir
-
 # Load Packages -----------------------------------------------------------
 
 library(tidyverse)
 library(janitor)
 library(pacman)
-library(here)
 library(sjlabelled)
-source("./Scripts/_00_build_functions.r")
+source("./Scripts/_00_utility_functions.r")
 
 
 # Open Raw Data -----------------------------------------------------------
@@ -68,11 +63,29 @@ df <- df %>%
 # Create Dummy Vars for Colleges ------------------------------------------
 
 df <- df %>% 
-  mutate(college_code_pivot = college_code,
-         college_desc_pivot = college_desc) %>% 
+  mutate(college_code_pivot = college_code,     #create copies otherwise 
+         college_desc_pivot = college_desc) %>% # will be lost in pivot
   pivot_wider(names_from = college_code_pivot, 
               values_from = college_desc_pivot, 
               values_fill = "All Others")
+
+
+# Convert Dummy Vars to Factors -------------------------------------------
+
+df <- df %>% 
+  mutate(
+    across(
+      .cols = c(COB, CENG, CLAS),
+      .fns = ~fct_rev(factor(.x, levels = sort(unique(.x))))
+    )
+  )
+
+
+# Convert academic classification to factor -------------------------------
+
+df <- df %>% 
+  mutate(academic_classification = factor(academic_classification,
+                                          levels = c("FR", "SO", "JR", "SR")))
 
 # Save as RDS -------------------------------------------------------------
 
@@ -87,4 +100,4 @@ df %>%
 # Clear Environment -------------------------------------------------------
 
 rm(list = ls())
-p_unload("all")
+pacman::p_unload("all")

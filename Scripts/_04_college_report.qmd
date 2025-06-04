@@ -1,23 +1,32 @@
 ---
-title: "Quarto Survey Report Demo"
-date: last-modified
-date-format: long
+title: |
+  Quarto Survey Report Demo  \
+  `r params$college_desc`
 abstract: |
   # Disclaimer
   All survey questions and data contained in this report are entirely fictitious and have been generated solely for demonstration purposes.
+date: last-modified
+date-format: long
 format: 
   pdf:
+    toc: true
+    toc-title: Table of Contents
     latex-output-dir: ../Output
+params:
+  college_code: COB
+  college_desc: College of Business
 header-includes:
   - \usepackage{titling}
   - \pretitle{\begin{center}
     \includegraphics[width=3in]{../Media/ThIRsdays.png}\vspace{10mm}\LARGE\\}
   - \posttitle{\end{center}}
+include-before:
+- '\newpage{}'
 execute: 
   echo: false
   warning: false
 ---
-\newpage
+\pagebreak
 
 ```{r}
 #| label: setup
@@ -40,20 +49,21 @@ library(kableExtra)
 
 df <- read_rds("../Data/Clean Data/Demo_Satisfaction_Survey.rds") 
 ```
-
+# Section I
+## `r params$college_desc` vs All Others
 ```{r, results='asis'}
-#| label: print_tables
+#| label: print_sat_matrix
 
 # Satisfaction matrix table
 
 df %>% 
-  select(sat_mjr_instruction:sat_belonging) %>%
-  sjlabelled::label_to_colnames() %>%
+  select(sat_mjr_instruction:sat_belonging, params$college_code) %>%
+  sjlabelled::label_to_colnames() %>% 
   # gtsummary will use label attr when
   # available, but mutate/across drops labels
   mutate(
     across(
-      .cols = everything(),
+      .cols = -c(params$college_code),
       .fns = ~case_when(is.na(.x) ~ NA,
                         as.numeric(.x) %in% c(4,5) ~ 1,
                         as.numeric(.x) %in% c(1:3)~ 0,
@@ -63,20 +73,22 @@ df %>%
   tbl_summary(
     include = everything(),
     missing = "no",
+    by = params$college_code,
     type = everything() ~ "dichotomous",
     statistic = all_dichotomous() ~ "{p}%\nN={N_nonmiss}"
   ) %>% 
   modify_header(
     label = "**Overall, how satisfied are you with the following aspects of your college experience?**",
-    stat_0 = "**Somewhat or Extremely Satisfied**"
+    all_stat_cols() ~ "**{level}**"
   ) %>% 
-  modify_table_body( #this step to arrange in desc order by %
+  modify_spanning_header(all_stat_cols() ~ "**Agree or Strongly Agree**") %>% 
+  modify_table_body(
     ~ .x %>% 
-      mutate(temp_pct = str_extract(stat_0, "^.*?(?=%)")) %>% 
+      mutate(temp_pct = str_extract(stat_1, "^.*?(?=%)")) %>% 
       arrange(desc(temp_pct)) %>% 
       select(-temp_pct)
-  ) %>%
-  remove_footnote_header(columns = all_stat_cols()) %>% 
+  ) %>% 
+   remove_footnote_header(columns = all_stat_cols()) %>% 
   remove_footnote_body() %>% 
   as_kable_extra(booktabs = TRUE,
                  caption = "Overall Satisfaction") %>%
@@ -87,12 +99,48 @@ df %>%
   kableExtra::footnote(general = c("1=Extremely dissatisfied; 2=Somewhat dissatisfied; 3=Neither satisfied nor dissatisfied; 4=Somewhat satisfied; 5=Extremely satisfied"),
                        threeparttable = TRUE) %>% 
   print()
-           
-  
-# Satisfaction matrix table by academic_classification
 
+```
+
+```{r, results='asis'}
+#| label: print_ten_point
+
+# Satisfaction and Confidence 10 pt scale questions
+df %>% 
+  select(sat_overall, sat_value, conf_life_skills, params$college_code) %>% 
+  sjlabelled::label_to_colnames() %>%
+  mutate(
+    across(
+      .cols = -c(params$college_code),
+      .fns = ~as.numeric(.x)
+    )
+  ) %>% 
+  tbl_summary(
+    include = everything(),
+    missing = "no",
+    by = params$college_code,
+    type = everything() ~ "continuous2",
+    statistic = all_continuous2() ~ "{mean} ({sd})\nN={N_nonmiss}"
+  ) %>%
+  modify_header(
+    label = "**Survey Item**",
+    all_stat_cols() ~ "**{level}**"
+  ) %>% 
+  as_kable_extra(booktabs = TRUE,
+                 caption = "Ten Point Scale Items") %>%
+  kableExtra::kable_styling(
+  latex_options = c("scale_down", "HOLD_position", "striped")) %>% 
+  kableExtra::column_spec(1, width = "25em") %>%
+  print()
+
+```
+# Section II
+## Within `r params$college_desc` Comparisons
+```{r, results='asis'}
+#| label: print_sat_acadclass
 
 df %>% 
+  filter(college_code == params$college_code) %>% 
   select(sat_mjr_instruction:sat_belonging,
          academic_classification) %>%
   sjlabelled::label_to_colnames() %>%
@@ -114,9 +162,10 @@ df %>%
     type = everything() ~ "dichotomous",
     statistic = all_dichotomous() ~ "{p}%\nN={N_nonmiss}"
   ) %>% 
+  # show_header_names() %>% 
   modify_header(
     label = "**Overall, how satisfied are you with the following aspects of your college experience?**",
-    #stat_0 = "**Somewhat or Extremely Satisfied**"
+    #stat_0 = "**Agree or Strongly Agree**"
     all_stat_cols() ~ "**{level}**"
   ) %>% 
   add_overall() %>% #use this field to sort to match prior table
@@ -126,7 +175,7 @@ df %>%
       arrange(desc(temp_pct)) %>% 
       select(-c(temp_pct, stat_0))
   ) %>% 
-  modify_spanning_header(all_stat_cols() ~ "**Somewhat or Extremely Satisfied**") %>%  
+  modify_spanning_header(all_stat_cols() ~ "**Agree or Strongly Agree**") %>%  
   remove_footnote_header(columns = all_stat_cols()) %>% 
   remove_footnote_body() %>% 
   as_kable_extra(booktabs = TRUE,
@@ -137,37 +186,13 @@ df %>%
   kableExtra::column_spec(1, width = "25em") %>%
   kableExtra::footnote(general = c("1=Extremely dissatisfied; 2=Somewhat dissatisfied; 3=Neither satisfied nor dissatisfied; 4=Somewhat satisfied; 5=Extremely satisfied"), threeparttable = TRUE) %>% 
   print()
+```
 
+```{r, results='asis'}
+#| label: print_tenpt_acadclass
 
-# Satisfaction and Confidence 10 pt scale questions
 df %>% 
-  select(sat_overall, sat_value, conf_life_skills) %>% 
-  sjlabelled::label_to_colnames() %>%
-  mutate(
-    across(
-      .cols = everything(),
-      .fns = ~as.numeric(.x)
-    )
-  ) %>% 
-  tbl_summary(
-    include = everything(),
-    missing = "no",
-    type = everything() ~ "continuous2",
-    statistic = all_continuous2() ~ "{mean} ({sd})\nN={N_nonmiss}"
-  ) %>%
-  modify_header(
-    label = "**Survey Item**",
-    stat_0 = "**Results**"
-  )  %>% 
-  as_kable_extra(booktabs = TRUE,
-                 caption = "Ten Point Scale Items") %>%
-  kableExtra::kable_styling(
-  latex_options = c("scale_down", "HOLD_position", "striped")) %>% 
-  kableExtra::column_spec(1, width = "25em") %>%
-  print()
-
-# Satisfaction and Confidence 10 pt scale questions by academic_classification
-df %>% 
+  filter(college_code == params$college_code) %>% 
   select(sat_overall, sat_value, conf_life_skills, academic_classification) %>% 
   sjlabelled::label_to_colnames() %>%
   mutate(
@@ -194,5 +219,4 @@ df %>%
   kableExtra::column_spec(1, width = "25em") %>%
   landscape() %>% 
   print()
-
 ```
