@@ -4,7 +4,7 @@
 
 ## Purpose
 
-The purpose of this project is to provide a general introduction to a scaleable and reproducible survey reporting workflow using R and Quarto.
+The purpose of this project is to provide a general introduction to a scalable and reproducible survey reporting workflow using R and Quarto.
 
 **This project is not intended to:**
 
